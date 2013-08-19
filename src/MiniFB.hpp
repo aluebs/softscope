@@ -3,10 +3,13 @@
 
 #include <string>
 #include <map>
+#include <linux/fb.h>
 
 class MiniFB
 {
    private:
+      int fd;
+      struct fb_var_screeninfo screeninfo;
       int width;
       int height;
       unsigned char* data;

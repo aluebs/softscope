@@ -2,7 +2,6 @@
 #include <fix.hpp>
 #include <fcntl.h>
 #include <unistd.h>
-#include <linux/fb.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <cstdlib>
@@ -15,15 +14,12 @@ using namespace std;
 
 MiniFB::MiniFB(string fb)
 {
-   int fd = open(fb.data(), O_RDWR);
-   struct fb_var_screeninfo screeninfo;
+   fd = open(fb.data(), O_RDWR);
    ioctl(fd, FBIOGET_VSCREENINFO, &screeninfo);
    width = screeninfo.xres;
    height = screeninfo.yres;
-   
-   data = (unsigned char*) mmap(0, width * height, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-   buffer = new unsigned char[width * height];
-   close(fd);
+   data = (unsigned char*) mmap(0, 2 * width * height, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+   buffer = data;
    for(char c = 'a'; c <= 'z'; c++)
    {
       addCharacter(c);
@@ -50,12 +46,11 @@ MiniFB::MiniFB(string fb)
 MiniFB::~MiniFB()
 {
    munmap(data, width * height);
-   delete[] buffer;
+   close(fd);
    for(map<char, bool*>::iterator i = characterMap.begin(); i != characterMap.end(); i++)
    {
       delete[] i->second;
    }
-
 }
 
 void MiniFB::clearScreen(void)
@@ -65,13 +60,17 @@ void MiniFB::clearScreen(void)
 
 void MiniFB::updateScreen(void)
 {
-   for(int y = 0; y < height; y++)
+   if(buffer == data)
    {
-      for(int x = 0; x < width; x++)
-      {
-         data[y * width + x] = buffer[y * width + x];
-      }
+      buffer += width * height;
+      screeninfo.yoffset = 0;
    }
+   else
+   {
+      buffer = data;
+      screeninfo.yoffset = height;
+   }
+   ioctl(fd, FBIOPAN_DISPLAY, &screeninfo);
 }
 
 void MiniFB::drawPixel(int x, int y, unsigned char color)
